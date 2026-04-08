@@ -91,10 +91,11 @@ async def health():
 
 
 @app.post("/reset", response_model=TriageObservation)
-async def reset(request: ResetRequest):
+async def reset(request: Optional[ResetRequest] = None):
     """Reset the environment for a new episode."""
+    task_id = request.task_id if request else "task_stemi_code"
     try:
-        obs = env.reset(task_id=request.task_id)
+        obs = env.reset(task_id=task_id)
         return obs
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
