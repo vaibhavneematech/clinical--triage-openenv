@@ -541,8 +541,21 @@ export default function Dashboard() {
 
         <div className="flex items-center gap-3">
           <button 
-            className="flex-1 h-full bg-cyan text-black font-black text-xs flex flex-col items-center justify-center hover:bg-white transition-colors group relative overflow-hidden"
-            onClick={() => addLog("System", "Manual Agent Trigger engaged.")}
+            className="flex-1 h-full bg-cyan text-black font-black text-xs flex flex-col items-center justify-center hover:bg-white transition-colors group relative overflow-hidden disabled:opacity-50"
+            disabled={!connected || currentTask === null}
+            onClick={async () => {
+              addLog("System", "Manual Agent Trigger engaged. Summoning Reasoner...");
+              try {
+                await fetch("/run_agent", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ task_id: currentTask })
+                });
+                addLog("System", "Inference sub-routine deployed successfully.");
+              } catch (e) {
+                addLog("Error", "Failed to deploy inference sub-routine.");
+              }
+            }}
           >
             <Play size={20} className="mb-1 group-hover:scale-125 transition-transform" />
             <span>RUN_AGENT</span>

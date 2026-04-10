@@ -139,6 +139,31 @@ async def get_state():
     return env.state.model_dump()
 
 
+class RunAgentRequest(BaseModel):
+    task_id: str
+
+
+@app.post("/run_agent")
+async def trigger_run_agent(request: RunAgentRequest):
+    """Trigger the inference script to run the task autonomously."""
+    import subprocess
+    import threading
+    import sys
+    
+    # We will spawn the inference script to act as the client
+    # Pass the task ID via environment variable so it only runs that one
+    environ = os.environ.copy()
+    environ["TASK_NAME"] = request.task_id
+    
+    inference_script = os.path.join(os.path.dirname(__file__), "..", "inference.py")
+    
+    def background_run():
+        subprocess.run([sys.executable, inference_script], env=environ)
+        
+    threading.Thread(target=background_run, daemon=True).start()
+    return {"status": "triggered"}
+
+
 @app.get("/tasks")
 async def list_tasks():
     """Return list of all available tasks with descriptions."""
