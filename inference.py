@@ -30,7 +30,7 @@ from clinical_triage_env.server.environment import ClinicalTriageEnvironment
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
-USE_LLM = os.environ.get("USE_LLM", "false").lower() == "true"
+USE_LLM = os.environ.get("USE_LLM", "true").lower() == "true"
 AGENT_PROVIDER = os.environ.get("AGENT_PROVIDER", "openai").lower() # openai, together, groq
 API_KEY = os.environ.get("API_KEY", os.environ.get("OPENAI_API_KEY", "dummy"))
 
