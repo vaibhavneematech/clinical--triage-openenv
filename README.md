@@ -340,6 +340,10 @@ clinical_triage_env/
 
 *Required for HF Spaces deployment. Not needed for local deterministic mode.
 
+## Validation
+
+Pre-submission validation passes all mandatory checks:
+
 ---
 
 ## License
