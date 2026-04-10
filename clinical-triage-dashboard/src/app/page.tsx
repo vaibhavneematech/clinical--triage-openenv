@@ -542,14 +542,15 @@ export default function Dashboard() {
         <div className="flex items-center gap-3">
           <button 
             className="flex-1 h-full bg-cyan text-black font-black text-xs flex flex-col items-center justify-center hover:bg-white transition-colors group relative overflow-hidden disabled:opacity-50"
-            disabled={!connected || currentTask === null}
+            disabled={!connected}
             onClick={async () => {
               addLog("System", "Manual Agent Trigger engaged. Summoning Reasoner...");
               try {
+                const taskId = state?.task_id || (document.getElementById('task-manifest') as HTMLSelectElement).value;
                 await fetch("/run_agent", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ task_id: currentTask })
+                  body: JSON.stringify({ task_id: taskId })
                 });
                 addLog("System", "Inference sub-routine deployed successfully.");
               } catch (e) {

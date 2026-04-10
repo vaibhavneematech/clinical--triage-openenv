@@ -33,10 +33,9 @@ def run_demo():
         time.sleep(2)
         max_retries -= 1
 
-    # 3. Open Dashboard (if possible)
-    print("💻 Opening Dashboard in browser (defaulting to localhost:3000)...")
-    print("   Note: Ensure 'npm run dev' is running in the 'clinical-triage-dashboard' directory.")
-    webbrowser.open("http://localhost:3000")
+    # 3. Open Dashboard
+    print("💻 Opening Dashboard in browser at http://localhost:7860/dashboard ...")
+    webbrowser.open("http://localhost:7860/dashboard")
 
     # 4. Start Agent
     print("🧠 Starting LLM Agent (inference.py)...")

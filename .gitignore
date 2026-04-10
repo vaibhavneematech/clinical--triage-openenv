@@ -31,7 +31,6 @@ out/
 dashboard_out/
 
 # Lock files (not needed in repo)
-uv.lock
 
 # Misc
 *.log
