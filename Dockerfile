@@ -1,13 +1,5 @@
-# Stage 1: Build the Dashboard
-FROM node:20-slim AS builder
-WORKDIR /dashboard
-COPY clinical-triage-dashboard/package*.json ./
-RUN npm install
-COPY clinical-triage-dashboard/ .
-RUN npm run build
-
-# Stage 2: Final Image
 FROM python:3.11-slim
+
 WORKDIR /app
 
 # Install system dependencies
@@ -21,9 +13,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
-
-# Copy built dashboard from Stage 1
-COPY --from=builder /dashboard/out ./dashboard_out
 
 # Expose port
 EXPOSE 7860

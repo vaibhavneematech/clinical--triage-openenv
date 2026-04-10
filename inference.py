@@ -20,6 +20,8 @@ from typing import Optional
 # Add current directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from openai import OpenAI
+
 from clinical_triage_env.models import TriageAction, TriageObservation
 from clinical_triage_env.server.environment import ClinicalTriageEnvironment
 
@@ -326,7 +328,7 @@ def run_task_deterministic(
     observation = env.reset(task_id=task_id)
     rewards = []
     
-    log_start(task=task_id, env=BENCHMARK, model="deterministic-optimal-v1")
+    log_start(task=task_id, env=BENCHMARK, model=MODEL_NAME)
     
     optimal_actions = OPTIMAL_SEQUENCES[task_id]
     steps_taken = 0
@@ -381,7 +383,7 @@ def run_task_with_llm(
     Uses the LLM for decision-making with optimal sequence as fallback.
     Activated by setting USE_LLM=true environment variable.
     """
-    from openai import OpenAI
+    # OpenAI imported at top level per submission requirements
     
     client = OpenAI(
         base_url=API_BASE_URL,
