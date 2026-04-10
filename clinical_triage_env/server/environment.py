@@ -28,6 +28,8 @@ from clinical_triage_env.server.reward import compute_step_reward
 from clinical_triage_env.server.graders.stemi_grader import grade_stemi
 from clinical_triage_env.server.graders.chest_workup_grader import grade_chest_workup
 from clinical_triage_env.server.graders.mci_grader import grade_mci
+from clinical_triage_env.server.vitals_engine import update_vitals
+from clinical_triage_env.server.time_costs import get_action_time_cost
 
 
 # ─── Task registry ──────────────────────────────────────────────────────
@@ -106,6 +108,7 @@ class ClinicalTriageEnvironment:
         self._state = TriageState(
             episode_id=kwargs.get("episode_id") or str(uuid.uuid4()),
             step_count=0,
+            elapsed_minutes=0,
             task_id=task_id,
             episode_history=[],
             cumulative_reward=0.0,
@@ -170,14 +173,29 @@ class ClinicalTriageEnvironment:
             action, self._state, task_id
         )
         self._state.cumulative_reward += reward
+        
+        # Add reward info to history
+        step_record["reward"] = reward
+        step_record["reward_components"] = components
+        step_record["reward_explanation"] = explanation
 
         # ── Check termination ───────────────────────────────────────
         done = self._check_done()
         self._done = done
 
         # ── Update patient state (time passes) ──────────────────────
+        action_copy = {
+            "action_type": action.action_type,
+            "parameter": action.parameter,
+        }
+        time_elapsed = get_action_time_cost(action_copy)
+        self._state.elapsed_minutes += time_elapsed
+
         for p in self._patients:
-            p.time_in_department_minutes += 2
+            p.time_in_department_minutes += time_elapsed
+
+        # Apply dynamic vitals update
+        update_vitals(self._patients, time_elapsed)
 
         return self._make_observation(
             reward=reward,
@@ -216,11 +234,19 @@ class ClinicalTriageEnvironment:
         elif atype == "assign_esi_level":
             return self._process_esi(pid, param)
         elif atype == "activate_pathway":
-            return self._process_pathway(pid, param)
+            res, err = self._process_pathway(pid, param)
+            if not err:
+                patient.current_medications.append(f"PATHWAY_{param}")
+            return res, err
         elif atype == "disposition":
             return self._process_disposition(pid, param)
         elif atype == "request_consult":
             return f"Consult requested for {pid}: {param}. Specialist notified.", None
+        elif atype == "administer_medication":
+            patient.current_medications.append(param.lower())
+            return f"Patient {pid}: Administered {param}.", None
+        elif atype == "assign_bed":
+            return f"Patient {pid} assigned to Bed {param}.", None
         elif atype == "wait":
             return self._process_wait(patient, task_id)
         else:
@@ -260,6 +286,7 @@ class ClinicalTriageEnvironment:
 
         # Check for medication actions (aspirin, epinephrine, etc.)
         if any(med in test_name.lower() for med in ["aspirin", "epinephrine", "iv_access", "resuscitation"]):
+            patient.current_medications.append(test_name.lower())
             return f"Medication/intervention ordered: {test_name}. Administered.", None
 
         return f"Test '{test_name}' ordered. Results pending.", None
@@ -321,17 +348,29 @@ class ClinicalTriageEnvironment:
             if len(self._state.dispositions) >= 5:
                 return True
 
-        # Safety: catastrophic action terminates episode
+        # Safety: catastrophic action or fatal delay terminates episode
         if self._state.episode_history:
             last = self._state.episode_history[-1]
             last_action = last.get("action", {})
+            param = last_action.get("parameter", "").lower()
+            pid = last_action.get("patient_id", "")
+            
+            # Check for fatal delay penalty in the last step
+            if self._state.cumulative_reward < -5.0:
+                return True
+            
+            # Instant termination for fatal signal from reward engine
+            last_reward_components = self._state.episode_history[-1].get("reward_components", {})
+            if "fatal_delay" in last_reward_components or "safety_guardrail" in last_reward_components and last_reward_components["safety_guardrail"] <= -10:
+                return True
+
             if last_action.get("action_type") == "disposition":
-                param = last_action.get("parameter", "").lower()
-                pid = last_action.get("patient_id", "")
                 # Discharging an ESI-1 patient = terminal
                 if "discharge" in param:
                     esi = self._state.esi_assignments.get(pid)
                     if esi == 1:
+                        return True
+                    if pid in ["P1", "P3"] and self._state.task_id == "task_mci_surge":
                         return True
 
         return False
@@ -363,6 +402,7 @@ class ClinicalTriageEnvironment:
             max_steps=self._task_info.max_steps if self._task_info else 15,
             patients=copy.deepcopy(self._patients),
             available_beds=available_beds,
+            elapsed_minutes=self._state.elapsed_minutes,
             last_action_result=result,
             last_action_error=error,
             reward_components=components,

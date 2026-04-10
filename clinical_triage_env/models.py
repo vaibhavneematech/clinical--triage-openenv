@@ -50,6 +50,8 @@ class PatientState(BaseModel):
     pending_imaging: List[str] = Field(default_factory=list)
     time_in_department_minutes: int = 0
     resource_tokens_remaining: int = Field(10, description="Budget for ordering tests")
+    vitals_trend: Dict[str, str] = Field(default_factory=dict, description="Trend indicators for vitals e.g. HR: ↑")
+
 
 
 # ─── OpenEnv Action Model ──────────────────────────────────────────────
@@ -62,6 +64,8 @@ class TriageAction(BaseModel):
         "activate_pathway",
         "disposition",
         "request_consult",
+        "administer_medication",
+        "assign_bed",
         "wait",
     ] = Field(..., description="Type of clinical action")
     patient_id: str = Field(..., description="Which patient this action targets")
@@ -81,6 +85,7 @@ class TriageObservation(BaseModel):
     max_steps: int = 15
     patients: List[PatientState] = Field(default_factory=list)
     available_beds: int = 10
+    elapsed_minutes: int = 0
     last_action_result: Optional[str] = None
     last_action_error: Optional[str] = None
     reward_components: Optional[Dict[str, float]] = None
@@ -93,6 +98,7 @@ class TriageState(BaseModel):
     """Internal episode state (includes hidden info like grader scores)."""
     episode_id: Optional[str] = None
     step_count: int = 0
+    elapsed_minutes: int = 0
     task_id: str = ""
     episode_history: List[dict] = Field(default_factory=list)
     cumulative_reward: float = 0.0

@@ -121,13 +121,46 @@ def compute_step_reward(
 
     # ── 5. Safety guardrails (terminal penalties) ───────────────────
     safety_penalty = 0.0
+    
+    # Fatal delay thresholds
+    elapsed = state.elapsed_minutes
+    
+    # STEMI: Door-to-balloon window is 90 mins
+    if task_id == "task_stemi_code":
+        cath_activated = any("cath" in p for p in state.pathways_activated)
+        if elapsed > 90 and not cath_activated:
+            safety_penalty = -10.0
+            components["fatal_delay"] = -10.0
+            
+    # Anaphylaxis (MCI Task Patient P3): Epinephrine window is tight
+    if task_id == "task_mci_surge":
+        # Check if P3 (anaphylaxis) has been treated or dispositioned
+        p3_dispo = state.dispositions.get("P3")
+        # We need a way to check if EPI was given. In V2, we add it to a list or just check diagnostics
+        epi_given = any("epi" in d for d in state.diagnostics_ordered)
+        if elapsed > 15 and not epi_given and not p3_dispo:
+            safety_penalty = -10.0
+            components["fatal_delay"] = -10.0
+
+    # ESI-1 patients waiting > 60 mins without any major intervention
+    for pid in esi1_patients:
+        if pid not in state.dispositions and elapsed > 60:
+            # Check if any diagnostic or pathway was done for this specific patient
+            intervened = any(h.get("action", {}).get("patient_id") == pid 
+                             and h.get("action", {}).get("action_type") in ["order_diagnostic", "activate_pathway"]
+                             for h in state.episode_history)
+            if not intervened:
+                safety_penalty = -10.0
+                components["fatal_delay"] = -10.0
+
     # Discharging an ESI-1 patient is catastrophic
     if action_type == "disposition" and "discharge" in param_lower:
         patient_esi = state.esi_assignments.get(action.patient_id)
         if patient_esi == 1:
-            safety_penalty = -0.50
+            safety_penalty = -10.0 # Upgraded from -0.5
         elif action.patient_id in esi1_patients:
-            safety_penalty = -0.50
+            safety_penalty = -10.0
+            
     # Infinite loop detection: same action 3 times in a row
     if len(state.episode_history) >= 3:
         last_3 = state.episode_history[-3:]
@@ -137,11 +170,13 @@ def compute_step_reward(
             for h in last_3
         ):
             safety_penalty = min(safety_penalty, -0.10)
-    components["safety_guardrail"] = safety_penalty
+    
+    if safety_penalty != 0.0:
+        components["safety_guardrail"] = safety_penalty
 
     # ── Total ───────────────────────────────────────────────────────
     total = sum(components.values())
-    total = max(-1.0, min(1.0, total))
+    total = max(-10.5, min(1.0, total))
 
     explanation = f"Step reward: {total:+.3f} | " + ", ".join(
         f"{k}={v:+.3f}" for k, v in components.items() if v != 0.0
